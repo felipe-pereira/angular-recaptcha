@@ -1,7 +1,7 @@
 /**
- * angular-recaptcha build:2015-08-26 
- * https://github.com/vividcortex/angular-recaptcha 
- * Copyright (c) 2015 VividCortex 
+ * angular-recaptcha build:2015-08-26
+ * https://github.com/vividcortex/angular-recaptcha
+ * Copyright (c) 2015 VividCortex
 **/
 
 /*global angular, Recaptcha */
@@ -58,12 +58,14 @@
              *
              * @param elm  the DOM element where to put the captcha
              * @param key  the recaptcha public key (refer to the README file if you don't know what this is)
+             * @param secureToken  the recaptcha secure token
              * @param fn   a callback function to call when the captcha is resolved
              * @param conf the captcha object configuration
              */
-            create: function (elm, key, fn, conf) {
+            create: function (elm, key, secureToken, fn, conf) {
                 conf.callback = fn;
                 conf.sitekey = key;
+                conf.stoken = secureToken;
 
                 return getRecaptcha().then(function (recaptcha) {
                     return recaptcha.render(elm, conf);
@@ -122,9 +124,11 @@
                 theme: '=?',
                 size: '=?',
                 tabindex: '=?',
+                useSecureToken: '=?',
                 onCreate: '&',
                 onSuccess: '&',
-                onExpire: '&'
+                onExpire: '&',
+                getSecureToken: '&'
             },
             link: function (scope, elm, attrs, ctrl) {
                 if (!attrs.hasOwnProperty('key')) {
@@ -165,26 +169,40 @@
                         }, 2 * 60 * 1000);
                     };
 
-                    vcRecaptcha.create(elm[0], key, callback, {
+                    var initialize = function(secureToken) {
+                        vcRecaptcha.create(elm[0], key, secureToken, callback, {
 
-                        theme: scope.theme || attrs.theme || null,
-                        tabindex: scope.tabindex || attrs.tabindex || null,
-                        size: scope.size || attrs.size || null
+                            theme: scope.theme || attrs.theme || null,
+                            tabindex: scope.tabindex || attrs.tabindex || null,
+                            size: scope.size || attrs.size || null
 
-                    }).then(function (widgetId) {
-                        // The widget has been created
-                        if(ctrl){
-                            ctrl.$setValidity('recaptcha',false);
-                        }
-                        scope.widgetId = widgetId;
-                        scope.onCreate({widgetId: widgetId});
+                        }).then(function (widgetId) {
+                            // The widget has been created
+                            if(ctrl){
+                                ctrl.$setValidity('recaptcha',false);
+                            }
+                            scope.widgetId = widgetId;
+                            scope.onCreate({widgetId: widgetId});
 
-                        scope.$on('$destroy', destroy);
+                            scope.$on('$destroy', destroy);
+                        });
 
-                    });
+                        // Remove this listener to avoid creating the widget more than once.
+                        removeCreationListener();
+                    };
 
-                    // Remove this listener to avoid creating the widget more than once.
-                    removeCreationListener();
+                    if (!scope.useSecureToken) {
+                        initialize();
+                    } else {
+                        if (typeof scope.getSecureToken !== 'function')
+                            throw new Error('You need to set "getSecureToken" function if "useSecureToken" is set to true');
+
+                        scope.getSecureToken().then(function(_secureToken) {
+                            initialize(_secureToken);
+                        });
+                    }
+
+
                 });
 
                 function destroy() {
